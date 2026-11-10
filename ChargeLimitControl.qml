@@ -235,8 +235,10 @@ Column {
         spacing: Style.space(6)
         visible: card.device.stopValues.length > 2 || card.device.startValues.length > 0
         enabled: root.writable
-        Controls.ComboBox {
+        ThresholdPicker {
           id: stopPicker
+          foreground: root.foreground
+          fontFamily: root.fontFamily
           objectName: "stop-" + card.device.id
           width: (customRow.width - customRow.spacing) / 2
           model: card.device.stopValues
@@ -248,8 +250,10 @@ Column {
             if (card.validStarts.indexOf(card.startDraft) < 0) card.startDraft = card.defaultStart(card.endDraft)
           }
         }
-        Controls.ComboBox {
+        ThresholdPicker {
           id: startPicker
+          foreground: root.foreground
+          fontFamily: root.fontFamily
           objectName: "start-" + card.device.id
           visible: card.device.startValues.length > 0
           width: stopPicker.width

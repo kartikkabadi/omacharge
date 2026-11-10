@@ -14,6 +14,6 @@ from client import elevate
 print(elevate(['/usr/bin/python3', '-I', str(Path.cwd()/'system/install.py'), 'remove']).stdout)
 PY
 fi
-omarchy plugin disable community.battery-care
+omarchy plugin disable io.github.kartikkabadi.omacharge
 printf '%s\n' 'Restored the standard power widget. Saved limits and current hardware settings were preserved.'
-printf '%s\n' 'To remove plugin files: omarchy plugin remove community.battery-care --yes'
+printf '%s\n' 'To remove plugin files: omarchy plugin remove io.github.kartikkabadi.omacharge --yes'

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <vendor>Battery Care community plugin</vendor>
+  <vendor>Omacharge</vendor>
   <action id="org.omarchy.community.battery-care">
     <description>Change battery charge limits</description>
     <message>Authentication is required to change or restore battery charge limits.</message>

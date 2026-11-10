@@ -26,7 +26,7 @@ import tempfile
 source = Path.cwd()
 parent = Path.home() / '.config/omarchy/plugins'
 parent.mkdir(parents=True, exist_ok=True)
-target = parent / 'community.battery-care'
+target = parent / 'io.github.kartikkabadi.omacharge'
 if target.resolve() == source.resolve():
     raise SystemExit(0)
 if target.is_symlink():
@@ -53,7 +53,7 @@ PY
 omarchy-shell shell rescanPlugins
 # Discovery is asynchronous. Wait for this specific manifest, not a fixed delay.
 for ((attempt=0; attempt<60; attempt++)); do
-  if omarchy plugin list --json | python3 -c 'import json,sys; sys.exit(0 if any(p["id"]=="community.battery-care" for p in json.load(sys.stdin)) else 1)'; then
+  if omarchy plugin list --json | python3 -c 'import json,sys; sys.exit(0 if any(p["id"]=="io.github.kartikkabadi.omacharge" for p in json.load(sys.stdin)) else 1)'; then
     python3 - <<'BACKUP'
 from datetime import datetime
 from pathlib import Path
@@ -66,10 +66,10 @@ if source.exists():
 BACKUP
     # Restore any existing power-panel clone first, then replace that same slot.
     omarchy plugin enable omarchy.power
-    omarchy plugin enable community.battery-care
+    omarchy plugin enable io.github.kartikkabadi.omacharge
     # Flush old QML components as well as refreshing the manifest on updates.
     omarchy restart shell
-    echo 'Battery Care is installed in the existing battery position.'
+    echo 'Omacharge is installed in the existing battery position.'
     exit 0
   fi
   sleep 0.1

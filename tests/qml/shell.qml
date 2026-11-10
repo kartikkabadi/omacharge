@@ -70,17 +70,24 @@ ShellRoot {
         controls.accept(JSON.stringify(controls.state))
         test.assertTrue(test.find(controls, "stop-BAT0") === before, "Refresh preserves editors")
         controls.grabToImage(function(result) { result.saveToFile(Qt.resolvedUrl("custom-panel.png").toString().replace(/^file:\/\//, "")) })
+        stop.popup.open()
         test.phase = 4
       } else if (test.phase === 4) {
+        var picker = test.find(controls, "stop-BAT0")
+        test.assertTrue(picker.popup.visible && controls.editing, "Picker opens and owns keyboard navigation")
+        test.assertTrue(picker.popup.contentItem.count > 0, "Picker delegates load")
+        picker.popup.close()
+        test.phase = 5
+      } else if (test.phase === 5) {
         var demo = JSON.parse(JSON.stringify(controls.state))
         demo.controls[0] = Object.assign({}, demo.controls[0], {id:"DEMO", driver:"apple", label:"Demo", end:80, start:75, stopValues:[80,100], startValues:[], derived:"apple", gap:1, fullStart:100, persisted:true})
         controls.accept(JSON.stringify(demo))
         controls.feedbackKey = ""
-        test.phase = 5
-      } else if (test.phase === 5) {
-        capture.grabToImage(function(result) { result.saveToFile(Qt.resolvedUrl("demo-panel.png").toString().replace(/^file:\/\//, "")) })
         test.phase = 6
       } else if (test.phase === 6) {
+        capture.grabToImage(function(result) { result.saveToFile(Qt.resolvedUrl("demo-panel.png").toString().replace(/^file:\/\//, "")) })
+        test.phase = 7
+      } else if (test.phase === 7) {
         console.log("PASS: UI presets, subprocess roundtrip, hardware controls, restart bounds, stable refresh, plain-text hostile label")
         Qt.quit()
       }

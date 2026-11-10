@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "community.battery-care",
-  "name": "Battery Care",
+  "id": "io.github.kartikkabadi.omacharge",
+  "name": "Omacharge",
   "version": "0.1.0",
-  "author": "Kartik Kabadi; battery panel based on Omarchy",
-  "description": "Hardware-aware battery charge limits inside the power panel",
+  "author": "Kartik Kabadi",
+  "description": "Hardware-aware charge limits inside the Omarchy battery panel",
   "kinds": [
     "bar-widget"
   ],
@@ -12,7 +12,7 @@
     "barWidget": "BatteryPanel.qml"
   },
   "barWidget": {
-    "displayName": "Battery Care",
+    "displayName": "Omacharge",
     "description": "Battery status, charge limits, and power profiles",
     "category": "System",
     "allowMultiple": false

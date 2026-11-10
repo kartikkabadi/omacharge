@@ -19,7 +19,8 @@ with tempfile.TemporaryDirectory(prefix='battery-care-ui-') as tmp:
     root = Path(tmp)
     for module in ('Ui', 'Commons'):
         shutil.copytree(shell / module, root / module)
-    shutil.copy2(project / 'ChargeLimitControl.qml', root / 'ChargeLimitControl.qml')
+    for name in ('ChargeLimitControl.qml','ThresholdPicker.qml'):
+        shutil.copy2(project/name,root/name)
     shutil.copytree(project / 'i18n', root / 'i18n')
     for file in (project / 'tests/qml').iterdir():
         if file.is_file():
