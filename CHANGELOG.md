@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — Explain battery percentages
+
+- Use the same integer percentage in the bar and the panel; previously one rounded while the other truncated.
+- Label Apple’s firmware charge limit separately from the desktop’s energy-based battery estimate.
+- When a single Apple battery reports a different percentage, show both readings with an explanation. Never clamp the displayed level to the chosen limit.
+- Keep non-Apple and multi-battery displays unchanged apart from consistent rounding.
+- This frontend release retains backend protocol/version 0.1.2; no privileged-helper update is needed.
+
 ## 0.1.2 — Extended submission audit
 
 - Disable stale controls after status failures and validate the complete backend-to-QML protocol.

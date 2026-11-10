@@ -49,6 +49,13 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
+// Match the panel's established integer display (omarchy-battery-status).
+// The bar, hero and explanatory desktop reading must use the same rounding.
+function displayPercentage(fraction) {
+  if (typeof fraction !== "number" || !isFinite(fraction) || fraction < 0 || fraction > 1) return null
+  return Math.floor(fraction * 100 + 0.0000001)
+}
+
 function chargeThresholdActive(device, onBattery, states) {
   var d = device || {}
   var s = states || {}
@@ -118,6 +125,7 @@ if (typeof module !== "undefined") {
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
+    displayPercentage: displayPercentage,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,

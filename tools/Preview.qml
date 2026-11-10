@@ -39,6 +39,7 @@ ShellRoot {
         id: controls
         x: 28; y: 76
         width: 504
+        desktopPercentage: 82
         foreground: "#ffffff"
         client: String(Qt.resolvedUrl("mock-status.py")).replace(/^file:\/\//, "")
       }

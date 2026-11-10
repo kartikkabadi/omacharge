@@ -38,9 +38,20 @@ function parse(raw) {
   }
   for (var b = 0; b < data.batteries.length; b++) {
     var battery = data.batteries[b]
-    if (!battery || !string(battery.id, 80)) throw new Error("Invalid battery")
+    if (!battery || !string(battery.id, 80)
+        || (battery.capacity !== undefined && !percent(battery.capacity))
+        || (battery.status !== undefined && !string(battery.status, 80))) throw new Error("Invalid battery")
   }
   for (var c = 0; c < data.conflicts.length; c++) if (!string(data.conflicts[c], 100)) throw new Error("Invalid service state")
   return data
 }
-if (typeof module !== "undefined") module.exports = {parse: parse}
+// Compare only a single identified internal Apple battery. Never compare a
+// per-battery reading with UPower's aggregate on multi-battery machines.
+function appleReadingDifference(batteries, device, desktop) {
+  if (!device || device.driver !== "apple" || !Array.isArray(batteries) || batteries.length !== 1
+      || batteries[0].id !== device.id || !integer(batteries[0].capacity)
+      || batteries[0].capacity < 0 || batteries[0].capacity > 100
+      || !integer(desktop) || desktop < 0 || desktop > 100 || batteries[0].capacity === desktop) return null
+  return {native: batteries[0].capacity, desktop: desktop}
+}
+if (typeof module !== "undefined") module.exports = {parse: parse, appleReadingDifference: appleReadingDifference}

@@ -69,7 +69,9 @@ omarchy restart shell
 For a separate source checkout, pull its updates and run `./install.sh` again.
 Updating the frontend does not silently update the privileged helper. Setup
 requests authentication and replaces the helper with a root-owned copy. The
-client refuses charge changes when the backend's release version differs.
+client refuses charge changes when the helper version differs from the version
+expected by `client.py`/`backend.py`. Frontend-only version 0.1.3 continues to
+use backend 0.1.2, so existing 0.1.2 helper installations do not need setup again.
 
 ## Protected files
 

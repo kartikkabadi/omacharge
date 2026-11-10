@@ -90,6 +90,11 @@ On supported Apple Silicon firmware, Battery care selects 80% with a 75% restart
 Full charge restores the native 100% setting. Other hardware can expose different
 values or a fixed mode; the panel follows the detected interface.
 
+Apple's battery percentage and the desktop's energy-based estimate can differ.
+When they do, the charge card labels both readings and identifies the Apple
+charge limit. For example, firmware at 80% can appear as 82% on the desktop while
+charging is paused. [Why the percentages differ](docs/CONTROL.md#battery-percentage-and-the-apple-charge-limit).
+
 ## Compatibility and limits
 
 Requires Python 3.11+ at `/usr/bin/python3`, Omarchy's Quickshell shell, systemd,

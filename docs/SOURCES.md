@@ -3,6 +3,8 @@
 Read-only research references used to implement the documented interfaces:
 
 - Linux power-supply ABI: https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-class-power
+- Apple SMC battery driver (native percentage and charge-limit status): https://github.com/torvalds/linux/blob/master/drivers/power/supply/macsmc-power.c
+- UPower device energy and percentage properties: https://upower.freedesktop.org/docs/Device.html
 - TLP vendor compatibility documentation: https://linrunner.de/tlp/settings/bc-vendors.html
 - TLP reference adapters, reviewed at commit `abb780be4f08916ff49103b461d741065b323777`: https://github.com/linrunner/TLP/tree/abb780be4f08916ff49103b461d741065b323777/bat.d
 - Framework tool command and output format, reviewed at commit `758de92afd11cc989099eeff694840c7a95ce016`: https://github.com/FrameworkComputer/framework-system/blob/758de92afd11cc989099eeff694840c7a95ce016/framework_lib/src/commandline/mod.rs

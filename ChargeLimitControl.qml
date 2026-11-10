@@ -14,6 +14,7 @@ Column {
   property bool hasCursor: false
   property int cursorIndex: 0
   property int selectedDevice: 0
+  property int desktopPercentage: -1
   property var state: ({controls: [], batteries: [], conflicts: [], installed: false, error: ""})
   property string errorDetail: ""
   property string feedbackKey: ""
@@ -177,6 +178,8 @@ Column {
         || ({ id: String(modelData), driver: "", label: "", kind: "threshold", shared: false, end: null, start: null,
               stopValues: [100], startValues: [], derived: "", gap: 1, fullStart: 95, careStop: null, fullStop: 100,
               persisted: false, warning: "", saved: null })
+      readonly property var readingDifference: root.freshStatus
+        ? ChargeModel.appleReadingDifference(root.state.batteries, device, root.desktopPercentage) : null
       readonly property bool editing: stopPicker.popup.visible || startPicker.popup.visible
       property int endDraft: device.stopValues.indexOf(device.end) >= 0 ? device.end : device.careStop !== null ? device.careStop : device.stopValues[0]
       property int startDraft: device.startValues.indexOf(device.start) >= 0 && device.start <= endDraft - device.gap ? device.start : defaultStart(endDraft)
@@ -209,7 +212,7 @@ Column {
         if (device.end === null) return strings.t("charge.unknown")
         if (device.kind === "toggle" || device.kind === "charge-types")
           return strings.t(device.end === 1 ? "charge.conservationOn" : "charge.conservationOff")
-        return strings.t("charge.current").arg(Commons.I18n.formatNumber(device.end))
+        return strings.t(device.driver === "apple" ? "charge.appleMaximum" : "charge.current").arg(Commons.I18n.formatNumber(device.end))
       }
       CareText {
         opacity: 1
@@ -218,6 +221,17 @@ Column {
           .arg(strings.t("hardware." + card.device.driver, card.device.driver))
       }
       CareText { text: card.currentLabel() }
+      CareText {
+        objectName: "reading-difference-" + card.device.id
+        visible: card.readingDifference !== null
+        text: card.readingDifference === null ? "" : strings.t("charge.appleReadings")
+          .arg(Commons.I18n.formatNumber(card.readingDifference.native))
+          .arg(Commons.I18n.formatNumber(card.readingDifference.desktop))
+      }
+      CareText {
+        visible: card.readingDifference !== null
+        text: strings.t("charge.appleReadingInfo")
+      }
       Row {
         id: presets
         width: parent.width

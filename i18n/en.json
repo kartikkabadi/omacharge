@@ -6,14 +6,14 @@
   "charge.unknown": "Current limit: unavailable",
   "charge.conservationOn": "Conservation mode is on (firmware-selected limit)",
   "charge.conservationOff": "Conservation mode is off (full charge)",
-  "charge.device": "%1 \u00b7 %2",
+  "charge.device": "%1 · %2",
   "charge.allBatteries": "All batteries",
   "charge.restart": "Charging resumes below %1%.",
-  "charge.appleInfo": "Battery care stops at %1% and resumes below %2%.",
+  "charge.appleInfo": "Apple firmware pauses charging at %1% and resumes below %2%.",
   "charge.setupInfo": "Finish setup once to enable authenticated changes and restore settings at boot and after sleep.",
   "charge.setup": "Finish setup",
-  "charge.setupPending": "Installing the charge-control helper\u2026 Authenticate if prompted.",
-  "charge.applying": "Applying\u2026 Authenticate if prompted.",
+  "charge.setupPending": "Installing the charge-control helper… Authenticate if prompted.",
+  "charge.applying": "Applying… Authenticate if prompted.",
   "charge.applied": "The driver accepted the setting and it was saved.",
   "charge.saved": "Saved for restart",
   "charge.unsaved": "Current setting is not saved by Omacharge.",
@@ -51,5 +51,8 @@
   "hardware.sysfs-advertised": "Detected charge controls",
   "charge.holdInfo": "Charging pauses at the maximum. The restart threshold applies only if the charge level falls.",
   "charge.setupComplete": "Setup complete. Existing charge settings were preserved.",
-  "charge.noFullCharge": "This driver does not expose a full-charge setting."
+  "charge.noFullCharge": "This driver does not expose a full-charge setting.",
+  "charge.appleMaximum": "Apple charge limit: %1%",
+  "charge.appleReadings": "Apple battery level: %1% · Desktop estimate: %2%",
+  "charge.appleReadingInfo": "The charge limit uses Apple’s battery percentage. The desktop estimates charge from stored energy, so the readings can differ."
 }

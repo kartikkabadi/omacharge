@@ -1,6 +1,17 @@
-# Omacharge validation — version 0.1.2
+# Omacharge validation — version 0.1.3
 
 Date: 10 November 2026.
+
+## Version 0.1.3 display correction
+
+- 98 Python tests, 15 JavaScript tests and the real-QML harness pass.
+- New regressions cover bar/panel rounding, explicit Apple/desktop readings,
+  unavailable/invalid readings, and exclusion of multi-battery aggregates.
+- The test Mac reports native capacity 80%, stop/start 80/75 and Not charging,
+  while UPower reports 82.9183% from 43.2744 Wh / 52.1892 Wh and zero charge power.
+  The panel now explains this discrepancy without altering either estimate or
+  changing battery settings.
+- The frontend is 0.1.3; the privileged helper and protocol remain 0.1.2.
 
 ## Version 0.1.2 submission review
 

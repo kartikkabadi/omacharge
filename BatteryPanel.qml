@@ -84,6 +84,10 @@ Panel {
     return Model.batteryFraction(d)
   }
 
+  readonly property var displayedPercentage: Model.displayPercentage(root.batteryFraction)
+  readonly property string percentageText: root.batteryPresent && root.displayedPercentage !== null
+    ? Commons.I18n.formatNumber(root.displayedPercentage) + "%" : "—"
+
   readonly property bool charging: {
     var d = UPower.displayDevice
     return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
@@ -289,7 +293,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
-    labelText: root.showPercentage && !vertical ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%" : ""
+    labelText: root.showPercentage && !vertical ? root.percentageText : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {
@@ -406,7 +410,7 @@ Panel {
           Text {
             id: heroPercent
             textFormat: Text.PlainText
-            text: root.reading(root.batteryInfo.percentage) || "—"
+            text: root.percentageText
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.displayLarge
@@ -491,6 +495,7 @@ Panel {
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
           opened: root.opened
+          desktopPercentage: root.batteryPresent && root.displayedPercentage !== null ? root.displayedPercentage : -1
           hasCursor: root.cursorActive && root.chargeCursor
           onHoveredChoice: function(index) {
             root.cursorActive = true

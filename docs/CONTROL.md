@@ -3,6 +3,24 @@
 Open the existing battery icon. The charge section describes the detected
 interface and its current driver-reported setting.
 
+## Battery percentage and the Apple charge limit
+
+The bar and panel use the same desktop/UPower percentage and integer rounding.
+The percentage is never capped at the selected charge limit.
+
+On Apple Silicon, the native battery controller reports its own percentage.
+UPower can instead estimate the level from remaining energy divided by full
+energy. These estimates can differ: on the test Mac, Apple reported 80% while
+UPower reported 82.9%, displayed as 82%. Both the native driver and UPower
+reported that charging was paused, with a verified 80/75 limit and zero charge
+power.
+
+The charge card labels this **Apple charge limit** and, when the readings differ,
+shows **Apple battery level** and **Desktop estimate** together. This comparison
+requires one identified Apple battery with fresh readings; it is omitted for
+multi-battery aggregates and unavailable telemetry. It explains the two scales;
+it does not change the charge limit or force discharge.
+
 ## Presets
 
 **Battery care** selects the valid stop value nearest 80% on a percentage-based

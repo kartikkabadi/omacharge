@@ -33,6 +33,7 @@ ShellRoot {
       x: 20
       y: 20
       width: 400
+      desktopPercentage: 82
       client: String(Qt.resolvedUrl("mock-client.py")).replace(/^file:\/\//, "")
     }
     }
@@ -46,6 +47,8 @@ ShellRoot {
       if (test.ticks > 80) { console.error("FAIL: timeout at phase " + test.phase); Qt.quit(); return }
       if (test.phase === 0 && controls.supported) {
         test.assertTrue(controls.writable, "setup is recognized")
+        var difference = test.find(controls, "reading-difference-TEST")
+        test.assertTrue(difference && difference.visible && difference.text.indexOf("80%") >= 0 && difference.text.indexOf("82%") >= 0, "Apple and desktop readings are explicitly labelled")
         var care = test.find(controls, "care-TEST")
         test.assertTrue(care !== null, "real care button exists")
         care.clicked()
