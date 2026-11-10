@@ -14,8 +14,9 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 HELPER = Path('/usr/local/libexec/omarchy-battery-care')
 CONFIG = Path('/etc/omarchy-battery-care.json')
 LOCK = Path('/run/lock/omarchy-battery-care.lock')
@@ -28,10 +29,24 @@ class CareError(RuntimeError):
 
 
 def trusted_executable(path):
+    """Trust the executable and every directory that can replace its pathname."""
+    path = Path(path)
     try:
-        info = path.lstat()
-        return stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022 and os.access(path, os.X_OK)
-    except OSError:
+        if not path.is_absolute():
+            return False
+        resolved = path.resolve(strict=True)
+        for candidate in {path, resolved}:
+            info = candidate.lstat()
+            if info.st_uid != 0:
+                return False
+            if not stat.S_ISLNK(info.st_mode) and (not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022):
+                return False
+            for parent in candidate.parents:
+                info = parent.lstat()
+                if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                    return False
+        return os.access(path, os.X_OK)
+    except (OSError, RuntimeError):
         return False
 
 
@@ -107,7 +122,7 @@ class Engine:
         try:
             with self.path(relative).open() as stream:
                 return stream.read(4096).strip()
-        except OSError:
+        except (OSError, UnicodeError):
             return default
 
     def number(self, relative):
@@ -194,7 +209,7 @@ class Engine:
             has_start = self.number(start) is not None
             driver = ''
             kwargs = {}
-            if name == 'macsmc-battery' and self.exists(end):
+            if name == 'macsmc-battery' and self.exists(end) and has_start:
                 driver = 'apple'
                 kwargs = dict(stop_values=[80, 100], derived='apple')
             elif self.path('bus/platform/drivers/ideapad_acpi').is_dir() and 'Long_Life' in self.read(base + '/charge_types'):
@@ -203,7 +218,7 @@ class Engine:
                               warning='The conservation percentage is fixed by the firmware and cannot be read.')
             elif not self.exists(end):
                 legacy = 'devices/platform/smapi/' + name
-                if self.exists(legacy + '/stop_charge_thresh'):
+                if self.number(legacy + '/stop_charge_thresh') is not None and self.number(legacy + '/start_charge_thresh') is not None:
                     driver = 'thinkpad-legacy'
                     base = legacy
                     kwargs = dict(stop_values=list(range(6, 101)), start_values=list(range(2, 97)),
@@ -219,7 +234,7 @@ class Engine:
                 if not has_start or not self.exists(base + '/charge_types'):
                     continue
                 kwargs = dict(stop_values=list(range(55, 101)), start_values=list(range(50, 96)), gap=5, mode_file='charge_types')
-            elif self.module('msi_ec'):
+            elif self.module('msi_ec') and has_start:
                 driver = 'msi'
                 kwargs = dict(stop_values=list(range(10, 101)), derived='msi')
             elif self.module('lg_laptop') or self.path('devices/platform/lg-laptop').is_dir():
@@ -240,7 +255,7 @@ class Engine:
                 if not starts or not has_start or not self.exists(base + '/charge_type'):
                     continue
                 kwargs = dict(stop_values=self.available(base, 'end'), start_values=starts, mode_file='charge_type')
-            elif self.module('asus_wmi'):
+            elif self.module('asus_wmi') and any(name in vendor for name in ('asus', 'asustek')):
                 driver = 'asus'
                 kwargs = dict(warning='The driver reports the requested limit; some firmware accepts only specific percentages.')
             else:
@@ -255,7 +270,7 @@ class Engine:
                 return result[-1:]
         # Wilco has a separate charger control, alongside BAT0/BAT1 telemetry.
         wilco = 'class/power_supply/wilco-charger'
-        if self.module('wilco_charger') and self.exists(wilco + '/charge_control_end_threshold'):
+        if self.module('wilco_charger') and self.number(wilco + '/charge_control_end_threshold') is not None and self.number(wilco + '/charge_control_start_threshold') is not None and self.exists(wilco + '/charge_type'):
             return [Control('platform-wilco', 'wilco-ec', wilco, 'All batteries', shared=True,
                             stop_values=list(range(55, 101)), start_values=list(range(50, 96)), gap=5, mode_file='charge_type')]
         if not result and vendor == 'framework' and trusted_executable(FRAMEWORK_TOOL):
@@ -270,7 +285,7 @@ class Engine:
         args = [str(FRAMEWORK_TOOL), '--charge-limit']
         if end is not None:
             args.append(str(end))
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=12, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=6, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
         match = re.search(r'^Minimum (\d{1,3})%, Maximum (\d{1,3})%\s*$', proc.stdout, re.M)
         if proc.returncode or not match or not 0 <= int(match[2]) <= 100:
             raise CareError('Framework could not confirm the charge limit. ' + proc.stderr[:400].strip())
@@ -286,7 +301,7 @@ class Engine:
                 return {'start': None, 'end': None}
         if control.kind == 'pair':
             values = self.read(path).split()
-            if len(values) != 2 or not all(v.isdecimal() for v in values):
+            if len(values) != 2 or not all(re.fullmatch(r'\d{1,3}', v) and 0 <= int(v) <= 100 for v in values):
                 return {'start': None, 'end': None}
             return {'start': int(values[0]), 'end': int(values[1])}
         if control.kind == 'charge-types':
@@ -303,22 +318,37 @@ class Engine:
                 raw = stream.read(MAX_CONFIG_BYTES + 1)
         except FileNotFoundError:
             return {'schema': 1, 'devices': {}}
+        except UnicodeError as error:
+            raise CareError('The saved configuration is not valid UTF-8; it was left untouched.') from error
         if len(raw) > MAX_CONFIG_BYTES:
             raise CareError('The saved configuration is too large.')
         try:
             data = json.loads(raw)
         except ValueError as error:
             raise CareError('The saved configuration is invalid JSON; it was left untouched.') from error
-        if not isinstance(data, dict) or data.get('schema') != 1 or not isinstance(data.get('devices'), dict) or len(data['devices']) > 32:
+        if not isinstance(data, dict) or type(data.get('schema')) is not int or data['schema'] != 1 or not isinstance(data.get('devices'), dict) or len(data['devices']) > 32:
             raise CareError('The saved configuration has an unsupported format.')
+        for id, value in data['devices'].items():
+            if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,80}', id) or not isinstance(value, dict):
+                raise CareError('A saved battery setting has an invalid device record.')
+            if not isinstance(value.get('identity'), str) or not re.fullmatch(r'[0-9a-f]{64}', value['identity']):
+                raise CareError('A saved battery setting has an invalid identity.')
+            if not isinstance(value.get('driver'), str) or not re.fullmatch(r'[a-z0-9-]{1,64}', value['driver']):
+                raise CareError('A saved battery setting has an invalid driver.')
+            if type(value.get('end')) is not int or not 0 <= value['end'] <= 100:
+                raise CareError('A saved battery setting has an invalid maximum.')
+            if value.get('start') is not None and (type(value['start']) is not int or not 0 <= value['start'] <= 100):
+                raise CareError('A saved battery setting has an invalid restart threshold.')
         return data
 
     def asahi_value(self):
         try:
-            for line in self.asahi.read_text()[:4096].splitlines():
+            with self.asahi.open() as stream:
+                lines = stream.read(4096).splitlines()
+            for line in lines:
                 if line in ('CHARGE_CONTROL_END_THRESHOLD=80', 'CHARGE_CONTROL_END_THRESHOLD=100'):
                     return int(line.partition('=')[2])
-        except OSError:
+        except (OSError, UnicodeError):
             pass
         return None
 
@@ -335,9 +365,11 @@ class Engine:
     def conflicts(self):
         try:
             result = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', 'tlp.service'], timeout=3, capture_output=True)
-            return ['tlp.service'] if result.returncode == 0 else []
+            if result.returncode == 0:
+                return ['tlp.service']
+            return [] if result.returncode in (3, 4) else ['charge-manager-status-unavailable']
         except (OSError, subprocess.SubprocessError):
-            return []
+            return ['charge-manager-status-unavailable']
 
     def status(self):
         error = ''
@@ -353,12 +385,15 @@ class Engine:
             controls.append(dict(id=control.id, driver=control.driver, label=control.label, kind=control.kind,
                                  shared=control.shared, stopValues=control.stop_values, startValues=control.start_values,
                                  derived=control.derived, gap=control.gap, fullStart=control.full_start,
-                                 careStop=1 if control.kind in ('toggle', 'charge-types') else min(control.stop_values, key=lambda v: abs(v-80)),
-                                 fullStop=0 if control.kind in ('toggle', 'charge-types') else max(control.stop_values),
+                                 careStop=1 if control.kind in ('toggle', 'charge-types') else min((v for v in control.stop_values if 25 <= v < 100), key=lambda v: abs(v-80), default=None),
+                                 fullStop=0 if control.kind in ('toggle', 'charge-types') else 100 if 100 in control.stop_values else None,
                                  warning=control.warning, saved=saved, persisted=bool(saved and current == {k: saved[k] for k in ('end', 'start')}),
                                  **current))
+        conflicts = self.conflicts()
+        if 'charge-manager-status-unavailable' in conflicts:
+            error = error or 'Could not check for another charge manager. Controls are read-only until the service check succeeds.'
         return dict(version=VERSION, machine=self.machine(), batteries=self.batteries(), controls=controls,
-                    conflicts=self.conflicts(), error=error)
+                    conflicts=conflicts, error=error)
 
     def validate(self, control, end, start=None):
         if type(end) is not int or end not in control.stop_values:
@@ -387,7 +422,13 @@ class Engine:
             self.write(control.path + '/' + control.end_file, 'Long_Life' if end else 'Standard')
         else:
             if control.mode_file:
-                self.write(control.path + '/' + control.mode_file, 'Custom')
+                mode = self.read(control.path + '/' + control.mode_file)
+                if mode != 'Custom' and '[Custom]' not in mode:
+                    self.write(control.path + '/' + control.mode_file, 'Custom')
+                # Switching mode may reset the thresholds. Order writes from the new state.
+                old = self.current(control)
+            if control.start_values and (old['end'] is None or old['start'] is None):
+                raise CareError('Cannot safely read both current thresholds; no threshold changes were made.')
             writes = [(control.end_file, end)]
             if control.start_values:
                 # Respect the firmware's start/stop invariant at every intermediate write.
@@ -409,8 +450,10 @@ class Engine:
         return actual
 
     def set(self, id, end, start=None):
-        if self.conflicts():
-            raise CareError('TLP is active and may overwrite charge settings. Choose one charge manager before making changes.')
+        conflicts = self.conflicts()
+        if conflicts:
+            message = 'TLP is active and may overwrite charge settings. Choose one charge manager before making changes.' if 'tlp.service' in conflicts else 'Could not check for another charge manager. Try again after the service check recovers.'
+            raise CareError(message)
         config = self.load_config()
         control = next((v for v in self.discover() if v.id == id), None)
         if control is None:
@@ -438,8 +481,11 @@ class Engine:
                     atomic_write(self.config, json.dumps(config, indent=2) + '\n')
 
     def restore(self):
-        if self.conflicts():
-            return {'restored': [], 'skipped': ['TLP is active'], 'errors': []}
+        conflicts = self.conflicts()
+        if conflicts:
+            if 'tlp.service' in conflicts:
+                return {'restored': [], 'skipped': ['TLP is active'], 'errors': []}
+            return {'restored': [], 'skipped': [], 'errors': ['Could not check for another charge manager. Nothing was restored.']}
         config = self.load_config()
         result = {'restored': [], 'skipped': [], 'errors': []}
         for control in self.discover():
@@ -455,13 +501,21 @@ class Engine:
 
 
 @contextlib.contextmanager
-def locked():
+def locked(timeout=8):
     fd = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         info = os.fstat(fd)
-        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode):
+        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
             raise CareError('The battery-control lock is not root-owned.')
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise CareError('Another battery operation is busy. Try again when it finishes.')
+                time.sleep(0.05)
         yield
     finally:
         os.close(fd)

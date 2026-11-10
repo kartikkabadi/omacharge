@@ -13,6 +13,7 @@ read-back, saved state and restore. It is also the installed root helper.
 
 ```bash
 python3 -m unittest discover -s tests -v
+node --test tests/test_model.cjs
 python3 -m py_compile backend.py client.py system/install.py
 bash -n install.sh setup.sh uninstall.sh system/sleep-hook
 omarchy plugin validate .
@@ -24,7 +25,7 @@ side effects. No real hardware is written and no authentication is requested.
 The UI test runs the actual component with a fake unprivileged backend, including
 presets, subprocess round trips, custom pickers and their popup, restart bounds,
 stable refresh and plain-text rendering. Quickshell and an installed Omarchy
-shell are required for that test. Ordinary GitHub CI runs the Python checks.
+shell are required for that test. GitHub CI runs the Python checks on 3.11 and 3.14, plus the JavaScript protocol checks. The QML harness is a local check because it needs the installed Omarchy shell.
 
 ## Preview media
 

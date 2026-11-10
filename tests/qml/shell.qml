@@ -79,6 +79,29 @@ ShellRoot {
         picker.popup.close()
         test.phase = 5
       } else if (test.phase === 5) {
+        var picker = test.find(controls, "stop-BAT0")
+        picker.activated(picker.model.indexOf(85))
+        var changed = JSON.parse(JSON.stringify(controls.state))
+        changed.controls[0].end = 90
+        controls.accept(JSON.stringify(changed))
+        test.assertTrue(test.find(controls, "stop-BAT0") === picker, "Changing current readings preserves the editor")
+        test.assertTrue(picker.displayText.indexOf("85") >= 0, "Custom draft survives a changed reading")
+        controls.client = String(Qt.resolvedUrl("failing-client.py")).replace(/^file:\/\//, "")
+        controls.refresh()
+        test.phase = 10
+      } else if (test.phase === 10 && controls.readFailed) {
+        test.assertTrue(!controls.writable, "Read failure disables stale controls")
+        controls.client = String(Qt.resolvedUrl("mock-client.py")).replace(/^file:\/\//, "")
+        controls.refresh()
+        test.phase = 11
+      } else if (test.phase === 11 && controls.freshStatus && !controls.readFailed) {
+        test.assertTrue(controls.feedbackKey !== "charge.readError", "Successful refresh clears a transient error")
+        controls.execute(["setup"], "charge.setupPending")
+        test.phase = 12
+      } else if (test.phase === 12 && !controls.busy && controls.feedbackKey === "charge.setupComplete") {
+        test.assertTrue(controls.writable, "Setup completion has the correct status")
+        test.phase = 13
+      } else if (test.phase === 13) {
         var demo = JSON.parse(JSON.stringify(controls.state))
         demo.controls[0] = Object.assign({}, demo.controls[0], {id:"DEMO", driver:"apple", label:"Demo", end:80, start:75, stopValues:[80,100], startValues:[], derived:"apple", gap:1, fullStart:100, persisted:true})
         controls.accept(JSON.stringify(demo))

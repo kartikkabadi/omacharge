@@ -6,7 +6,7 @@ ConditionPathExists=/etc/omarchy-battery-care.json
 [Service]
 Type=oneshot
 ExecStart=/usr/local/libexec/omarchy-battery-care restore
-TimeoutStartSec=30
+TimeoutStartSec=90
 User=root
 UMask=0022
 NoNewPrivileges=yes

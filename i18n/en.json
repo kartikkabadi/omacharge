@@ -49,5 +49,7 @@
   "hardware.wilco-ec": "Wilco EC",
   "hardware.framework-tool": "Framework",
   "hardware.sysfs-advertised": "Detected charge controls",
-  "charge.holdInfo": "Charging pauses at the maximum. The restart threshold applies only if the charge level falls."
+  "charge.holdInfo": "Charging pauses at the maximum. The restart threshold applies only if the charge level falls.",
+  "charge.setupComplete": "Setup complete. Existing charge settings were preserved.",
+  "charge.noFullCharge": "This driver does not expose a full-charge setting."
 }

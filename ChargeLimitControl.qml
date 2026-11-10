@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "ChargeModel.js" as ChargeModel
 
 Column {
   id: root
@@ -17,9 +18,12 @@ Column {
   property string errorDetail: ""
   property string feedbackKey: ""
   property int generation: 0
+  property bool freshStatus: false
+  property bool readFailed: false
+  property var deviceIds: []
   readonly property bool supported: state.controls.length > 0
   readonly property bool busy: action.running
-  readonly property bool writable: state.installed && state.conflicts.length === 0 && !busy && !state.error
+  readonly property bool writable: freshStatus && state.installed && state.conflicts.length === 0 && !busy && !state.error
   property string client: String(Qt.resolvedUrl("client.py")).replace(/^file:\/\//, "")
   readonly property bool editing: {
     for (var i = 0; i < devices.count; i++) {
@@ -29,22 +33,35 @@ Column {
     return false
   }
   signal hoveredChoice(int index)
+  signal applied()
   spacing: Style.space(10)
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   function refresh() {
     if (!reader.running && !busy) {
       reader.generation = generation
+      reader.output = ""
+      reader.error = ""
       reader.running = true
     }
   }
   function accept(raw) {
-    var next = JSON.parse(raw)
-    if (!Array.isArray(next.controls) || next.controls.length > 16 || !Array.isArray(next.batteries)
-        || !Array.isArray(next.conflicts) || typeof next.installed !== "boolean") throw new Error("Invalid battery status")
+    var next = ChargeModel.parse(raw)
+    var selectedId = state.controls[selectedDevice] ? state.controls[selectedDevice].id : ""
+    var nextIds = next.controls.map(function(d) { return d.id })
     if (JSON.stringify(next.controls) === JSON.stringify(state.controls)) next.controls = state.controls
     state = next
-    selectedDevice = Math.min(selectedDevice, Math.max(0, next.controls.length - 1))
+    if (JSON.stringify(nextIds) !== JSON.stringify(deviceIds)) deviceIds = nextIds
+    selectedDevice = Math.max(0, nextIds.indexOf(selectedId))
+    freshStatus = true
+    readFailed = false
+    if (feedbackKey === "charge.readError") { feedbackKey = ""; errorDetail = "" }
+  }
+  function readError(detail) {
+    freshStatus = false
+    readFailed = true
+    feedbackKey = "charge.readError"
+    errorDetail = String(detail || "").slice(0, 2000)
   }
   function execute(command, feedback) {
     if (busy) return
@@ -57,7 +74,7 @@ Column {
     action.running = true
   }
   function apply(device, end, start) {
-    if (!writable || !device) return
+    if (!writable || !device || end === null || device.stopValues.indexOf(end) < 0) return
     var args = ["set", device.id, String(end)]
     if (start !== null && start !== undefined) args.push(String(start))
     execute(args, "charge.applying")
@@ -74,14 +91,16 @@ Column {
     id: reader
     property int generation: 0
     property string output: ""
+    property string error: ""
     command: ["/usr/bin/python3", root.client, "status"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: reader.output = text }
+    stderr: StdioCollector { waitForEnd: true; onStreamFinished: reader.error = text }
     onExited: function(code) {
       if (reader.generation !== root.generation) { root.refresh(); return }
       try {
         if (code !== 0) throw new Error("status unavailable")
         root.accept(output)
-      } catch (e) { root.feedbackKey = "charge.readError" }
+      } catch (e) { root.readError(reader.error) }
     }
   }
   Process {
@@ -97,8 +116,9 @@ Column {
           var next = JSON.parse(output)
           if (next.installed === undefined) next.installed = true
           root.accept(JSON.stringify(next))
-          root.feedbackKey = "charge.applied"
-        } catch (e) { root.feedbackKey = "charge.readError" }
+          root.feedbackKey = action.command[action.command.length - 1] === "setup" ? "charge.setupComplete" : "charge.applied"
+          root.applied()
+        } catch (e) { root.readError("") }
       } else {
         root.feedbackKey = "charge.setError"
         root.errorDetail = error.trim().slice(0, 2000)
@@ -117,7 +137,7 @@ Column {
     text: strings.t(root.state.batteries.length === 0 ? "charge.noBattery" : "charge.unsupported")
   }
   CareText {
-    visible: root.state.conflicts.length > 0
+    visible: root.state.conflicts.indexOf("tlp.service") >= 0
     text: strings.t("charge.conflict")
   }
   CareText {
@@ -127,7 +147,7 @@ Column {
   Column {
     width: parent.width
     spacing: Style.space(8)
-    visible: root.supported && !root.state.installed
+    visible: !root.state.installed && (root.supported || root.readFailed)
     CareText { text: strings.t("charge.setupInfo") }
     Button {
       text: strings.t("charge.setup")
@@ -144,16 +164,31 @@ Column {
 
   Repeater {
     id: devices
-    model: root.state.controls
+    model: root.deviceIds
     delegate: Column {
       id: card
       required property var modelData
       required property int index
-      property var device: modelData
+      property var device: root.state.controls.filter(function(d) { return d.id === card.modelData })[0]
+        || ({ id: String(modelData), driver: "", label: "", kind: "threshold", shared: false, end: null, start: null,
+              stopValues: [100], startValues: [], derived: "", gap: 1, fullStart: 95, careStop: null, fullStop: 100,
+              persisted: false, warning: "", saved: null })
       readonly property bool editing: stopPicker.popup.visible || startPicker.popup.visible
-      property int endDraft: device.end === null ? device.careStop : device.end
-      property int startDraft: device.start === null ? defaultStart(endDraft) : device.start
+      property int endDraft: device.stopValues.indexOf(device.end) >= 0 ? device.end : device.careStop !== null ? device.careStop : device.stopValues[0]
+      property int startDraft: device.startValues.indexOf(device.start) >= 0 && device.start <= endDraft - device.gap ? device.start : defaultStart(endDraft)
       readonly property var validStarts: device.startValues.filter(function(v) { return v <= card.endDraft - card.device.gap })
+      onDeviceChanged: {
+        if (device.stopValues.indexOf(endDraft) < 0) endDraft = device.stopValues[0]
+        if (validStarts.indexOf(startDraft) < 0) startDraft = defaultStart(endDraft)
+      }
+      HoverHandler { onHoveredChanged: if (hovered) root.selectedDevice = card.index }
+      Connections {
+        target: root
+        function onApplied() {
+          card.endDraft = card.device.stopValues.indexOf(card.device.end) >= 0 ? card.device.end : card.device.stopValues[0]
+          card.startDraft = card.device.startValues.indexOf(card.device.start) >= 0 ? card.device.start : card.defaultStart(card.endDraft)
+        }
+      }
       width: root.width
       spacing: Style.space(8)
       function defaultStart(end) {
@@ -191,9 +226,9 @@ Column {
           fontFamily: root.fontFamily
           fontSize: Style.font.bodySmall
           bordered: true
-          active: card.device.end === card.device.careStop
+          active: card.device.careStop !== null && card.device.end === card.device.careStop
           hasCursor: root.hasCursor && root.selectedDevice === card.index && root.cursorIndex === 0
-          enabled: root.writable
+          enabled: root.writable && card.device.careStop !== null
           opacity: enabled ? 1 : 0.5
           Accessible.role: Accessible.Button
           Accessible.name: text
@@ -209,9 +244,9 @@ Column {
           fontFamily: root.fontFamily
           fontSize: Style.font.bodySmall
           bordered: true
-          active: card.device.end === card.device.fullStop
+          active: card.device.fullStop !== null && card.device.end === card.device.fullStop
           hasCursor: root.hasCursor && root.selectedDevice === card.index && root.cursorIndex === 1
-          enabled: root.writable
+          enabled: root.writable && card.device.fullStop !== null
           opacity: enabled ? 1 : 0.5
           Accessible.role: Accessible.Button
           Accessible.name: text
@@ -281,6 +316,7 @@ Column {
         text: strings.t(card.device.persisted ? "charge.saved" : "charge.unsaved")
         font.pixelSize: Style.font.caption
       }
+      CareText { visible: card.device.fullStop === null; text: strings.t("charge.noFullCharge") }
       CareText { visible: card.device.warning !== ""; text: card.device.warning }
     }
   }

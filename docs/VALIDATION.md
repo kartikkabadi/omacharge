@@ -1,4 +1,4 @@
-# Omacharge validation — version 0.1.0
+# Omacharge validation — version 0.1.1
 
 Date: 10 November 2026.
 
@@ -15,9 +15,11 @@ Date: 10 November 2026.
 
 ## Automated tests
 
-45 Python unit tests pass. Coverage includes vendor discovery and application, independent dual batteries, shared platform controls, driver-advertised discrete values, automatic restart thresholds, valid write order, read-back rejection, partial writes, saved-state restore, changed-machine rejection, missing/external devices, corrupt config, symlink escape rejection, fixed command arguments, TLP conflict handling, and privilege fallback behavior.
+83 Python unit tests and 6 JavaScript protocol tests pass. Coverage includes vendor discovery and application, independent dual batteries, shared platform controls, driver-advertised discrete values, automatic restart thresholds, valid write order, read-back rejection, partial writes, saved-state restore, changed-machine rejection, missing/external devices, corrupt config, symlink escape rejection, fixed command arguments, TLP conflict handling, and privilege fallback behavior.
 
-The real Quickshell QML component was loaded offscreen with a fake unprivileged backend. Its actual preset signals performed subprocess round trips, returned state updated the buttons, custom driver-specific pickers loaded, restart gaps were enforced, and repeated status refresh preserved the editor instance. A synthetic demonstration image is included; it contains no real user data.
+The installer tests cover preflight rejection, protected destination checks, transaction rollback, service enablement and active-state recovery, removal failures, file bounds and lock deadlines. Audit tests cover writable executable ancestors, corrupt/non-UTF-8 state, fail-closed service detection, outdated-helper fallback and rejected handshakes. Protocol tests reject malformed nested data, excessive payloads and invalid choices before QML binding.
+
+The real Quickshell QML component was loaded offscreen with a fake unprivileged backend. Its actual preset signals performed subprocess round trips, returned state updated the buttons, custom driver-specific pickers loaded, restart gaps were enforced, repeated status refresh preserved the editor and unsaved selection, failed reads disabled stale writes, recovery cleared transient errors, and setup displayed its own success message. A synthetic demonstration image is included; it contains no real user data.
 
 Plugin manifest validation, Python compilation, shell syntax checks, and systemd unit verification pass on the installed machine.
 

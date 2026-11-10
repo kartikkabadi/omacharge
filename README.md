@@ -49,6 +49,20 @@ does not choose a new limit. A verified existing Apple/Asahi limit is adopted.
 See [installation and updates](docs/INSTALL.md), including migration from a local
 power-panel clone.
 
+## Remove
+
+Choose **Full charge** first if you want to lift the current limit. Then run:
+
+```bash
+cd ~/.config/omarchy/plugins/io.github.kartikkabadi.omacharge
+./uninstall.sh --backend
+omarchy plugin remove io.github.kartikkabadi.omacharge --yes
+```
+
+Removal restores the stock power widget and removes the helper and restore
+hooks. Saved policies remain on disk; the current firmware setting is preserved.
+See [removal details](docs/INSTALL.md#removal).
+
 ## Three kinds of charge control
 
 | Battery care | Custom thresholds | Conservation mode |

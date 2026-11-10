@@ -21,7 +21,7 @@ def needs_auth(result):
 
 
 def elevate(command):
-    result = run(['/usr/bin/sudo', '-n', '--', *command])
+    result = run(['/usr/bin/sudo', '-n', '--', *command], timeout=120)
     if needs_auth(result):
         result = run(['/usr/bin/pkexec', *command], timeout=180)
     # Never retry a helper error: it may have already written part of a selection.
@@ -41,19 +41,37 @@ def main():
             args = ['status']
         installed = trusted_executable(HELPER)
         if args == ['status']:
-            command = [str(HELPER), 'status'] if installed else ['/usr/bin/python3', '-I', str(Path(__file__).with_name('backend.py')), 'status']
-            result = run(command, timeout=20)
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
-            data = json.loads(result.stdout)
-            data['installed'] = installed and data.get('version') == VERSION
+            data = None
+            if installed:
+                result = run([str(HELPER), 'status'], timeout=30)
+                if result.returncode == 0:
+                    try:
+                        candidate = json.loads(result.stdout)
+                        if isinstance(candidate, dict) and candidate.get('version') == VERSION:
+                            data = candidate
+                    except ValueError:
+                        pass
+            # A broken/older helper cannot hide new frontend capabilities or its setup button.
+            if data is None:
+                command = ['/usr/bin/python3', '-I', str(Path(__file__).with_name('backend.py')), 'status']
+                result = run(command, timeout=30)
+                if result.returncode:
+                    raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
+                data = json.loads(result.stdout)
+                installed = False
+            if not isinstance(data, dict):
+                raise RuntimeError('The battery helper returned an invalid status.')
+            data['installed'] = installed
             print(json.dumps(data))
             return 0
         if len(args) in (3, 4) and args[0] == 'set':
             if not installed:
                 raise RuntimeError('Finish backend setup before changing a limit.')
-            status = json.loads(run([str(HELPER), 'status'], timeout=20).stdout)
-            if status.get('version') != VERSION:
+            result = run([str(HELPER), 'status'], timeout=30)
+            if result.returncode:
+                raise RuntimeError(result.stderr.strip()[:2000] or 'The battery helper is unavailable.')
+            status = json.loads(result.stdout)
+            if not isinstance(status, dict) or status.get('version') != VERSION:
                 raise RuntimeError('Update the backend using Finish setup before changing a limit.')
             # Backend rediscovery and validation remain authoritative.
             print(elevate([str(HELPER), *args]).stdout.strip())

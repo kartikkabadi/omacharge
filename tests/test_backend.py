@@ -72,6 +72,8 @@ class HardwareTests(unittest.TestCase):
 
     def standard(self, module, name='BAT0', start=75, end=80):
         self.module(module)
+        if module == 'asus_wmi':
+            self.file('class/dmi/id/sys_vendor', 'ASUSTeK COMPUTER INC.')
         self.file(f'class/power_supply/{name}/type', 'Battery')
         self.file(f'class/power_supply/{name}/charge_control_end_threshold', end)
         if start is not None:
@@ -319,7 +321,8 @@ class HardwareTests(unittest.TestCase):
         data['devices']['BAT0']['path'] = '/etc/passwd'
         self.engine.config.write_text(json.dumps(data))
         self.engine.writes.clear()
-        self.assertTrue(self.engine.restore()['errors'])
+        with self.assertRaises(bc.CareError):
+            self.engine.restore()
         self.assertEqual(self.engine.writes, [])
 
     def test_corrupt_config_is_not_overwritten(self):
@@ -394,6 +397,90 @@ class HardwareTests(unittest.TestCase):
         self.file('class/dmi/id/product_name', '<img src="https://example.invalid/tracker">')
         self.assertEqual(self.engine.status()['machine']['model'], '<img src="https://example.invalid/tracker">')
         self.assertEqual(self.engine.writes, [])
+
+
+    def test_asus_module_on_other_vendor_does_not_guess_support(self):
+        self.standard('asus_wmi', start=None)
+        self.file('class/dmi/id/sys_vendor', 'Different manufacturer')
+        self.assertEqual(self.engine.discover(), [])
+
+    def test_apple_missing_restart_interface_is_read_only(self):
+        self.file('class/power_supply/BAT0/present', 0)
+        self.standard('macsmc_power', 'macsmc-battery', start=None)
+        self.assertEqual(self.engine.discover(), [])
+
+    def test_wilco_incomplete_interface_is_read_only(self):
+        self.module('wilco_charger')
+        self.file('class/power_supply/wilco-charger/charge_control_end_threshold',80)
+        self.assertEqual(self.engine.discover(), [])
+
+    def test_full_charge_not_invented_when_not_advertised(self):
+        self.file('class/power_supply/BAT0/charge_control_end_threshold',80)
+        self.file('class/power_supply/BAT0/charge_control_end_available_thresholds','60 80')
+        control=self.engine.status()['controls'][0]
+        self.assertIsNone(control['fullStop'])
+        self.assertEqual(control['careStop'],80)
+
+    def test_care_preset_never_selects_zero_or_full_charge(self):
+        self.file('class/power_supply/BAT0/charge_control_end_threshold',100)
+        self.file('class/power_supply/BAT0/charge_control_end_available_thresholds','0 100')
+        control=self.engine.status()['controls'][0]
+        self.assertIsNone(control['careStop'])
+        self.assertEqual(control['fullStop'],100)
+
+    def test_switching_custom_mode_rechecks_reset_thresholds(self):
+        base=self.standard('dell_laptop',start=95,end=100)
+        self.file(base+'/charge_types','[Standard] Custom')
+        write=self.engine.write
+        def switching(path,value):
+            write(path,value)
+            if path.endswith('charge_types'):
+                self.file(base+'/charge_control_start_threshold',55)
+                self.file(base+'/charge_control_end_threshold',60)
+        with patch.object(self.engine,'write',side_effect=switching):
+            self.set_limit(80,75)
+        self.assertEqual([Path(p).name for p,v in self.engine.writes], ['charge_types','charge_control_end_threshold','charge_control_start_threshold'])
+
+    def test_already_custom_mode_is_not_rewritten(self):
+        base=self.standard('dell_laptop')
+        self.file(base+'/charge_types','Standard [Custom]')
+        self.set_limit(85,70)
+        self.assertFalse(any(p.endswith('charge_types') for p,v in self.engine.writes))
+
+    def test_malformed_saved_value_disables_status_and_preserves_file(self):
+        self.standard('thinkpad_acpi')
+        self.set_limit(80,75)
+        data=self.engine.load_config()
+        data['devices']['BAT0']['start']=True
+        raw=json.dumps(data)
+        self.engine.config.write_text(raw)
+        self.assertTrue(self.engine.status()['error'])
+        with self.assertRaises(bc.CareError): self.set_limit(85,70)
+        self.assertEqual(self.engine.config.read_text(),raw)
+
+    def test_huawei_malformed_pair_stays_unknown(self):
+        self.file('devices/platform/huawei-wmi/charge_control_thresholds','1000 5000')
+        self.assertEqual(self.engine.current(self.control()),{'start':None,'end':None})
+
+    def test_service_check_failure_blocks_writes(self):
+        self.standard('thinkpad_acpi')
+        with patch.object(self.engine,'conflicts',return_value=['charge-manager-status-unavailable']):
+            self.assertTrue(self.engine.status()['error'])
+            with self.assertRaisesRegex(bc.CareError,'Could not check'): self.set_limit(80,75)
+            self.assertTrue(self.engine.restore()['errors'])
+        self.assertEqual(self.engine.writes,[])
+
+    def test_non_utf8_config_is_a_read_only_error(self):
+        self.standard('thinkpad_acpi')
+        self.engine.config.write_bytes(b'\xff\xfe')
+        self.assertTrue(self.engine.status()['error'])
+        self.assertEqual(self.engine.writes,[])
+
+    def test_non_utf8_firmware_text_does_not_hide_battery_controls(self):
+        self.standard('thinkpad_acpi')
+        self.file('class/dmi/id/product_name','').write_bytes(b'\xff')
+        self.assertEqual(self.engine.machine()['model'],'')
+        self.assertEqual(len(self.engine.status()['controls']),1)
 
 
 if __name__ == '__main__':
