@@ -1,0 +1,19 @@
+[Unit]
+Description=Restore saved battery charge limits
+After=systemd-udev-trigger.service
+ConditionPathExists=/etc/omarchy-battery-care.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/omarchy-battery-care restore
+TimeoutStartSec=30
+User=root
+UMask=0022
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/sys /run/lock
+
+[Install]
+WantedBy=multi-user.target

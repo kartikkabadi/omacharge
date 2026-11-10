@@ -1,0 +1,5 @@
+#!/bin/sh
+# Reapply limits lost by the embedded controller during suspend/hibernate.
+if [ "$1" = post ] && [ -f /etc/omarchy-battery-care.json ]; then
+    /usr/local/libexec/omarchy-battery-care restore
+fi

@@ -1,0 +1,2 @@
+# Reapply settings when batteries or their drivers appear after boot.
+ACTION=="add", SUBSYSTEM=="power_supply", TAG+="systemd", ENV{SYSTEMD_WANTS}+="omarchy-battery-care.service"
