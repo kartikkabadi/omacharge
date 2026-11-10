@@ -11,5 +11,9 @@ jobs:
         with:
           python-version: '3.11'
       - run: python3 -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/test_model.js
       - run: python3 -m py_compile backend.py client.py system/install.py
       - run: bash -n install.sh setup.sh uninstall.sh system/sleep-hook

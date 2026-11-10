@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import "Model.js" as Model
 
 Column {
   id: root
@@ -17,10 +18,11 @@ Column {
   property string errorDetail: ""
   property string feedbackKey: ""
   property int generation: 0
+  property bool readingAvailable: false
   readonly property bool supported: state.controls.length > 0
   readonly property bool busy: action.running
-  readonly property bool writable: state.installed && state.conflicts.length === 0 && !busy && !state.error
-  property string client: String(Qt.resolvedUrl("client.py")).replace(/^file:\/\//, "")
+  readonly property bool writable: readingAvailable && state.installed && state.conflicts.length === 0 && !busy && !state.error
+  property string client: decodeURIComponent(String(Qt.resolvedUrl("client.py")).replace(/^file:\/\//, ""))
   readonly property bool editing: {
     for (var i = 0; i < devices.count; i++) {
       var card = devices.itemAt(i)
@@ -39,11 +41,11 @@ Column {
     }
   }
   function accept(raw) {
-    var next = JSON.parse(raw)
-    if (!Array.isArray(next.controls) || next.controls.length > 16 || !Array.isArray(next.batteries)
-        || !Array.isArray(next.conflicts) || typeof next.installed !== "boolean") throw new Error("Invalid battery status")
+    var next = Model.parseChargeStatus(raw)
     if (JSON.stringify(next.controls) === JSON.stringify(state.controls)) next.controls = state.controls
     state = next
+    readingAvailable = true
+    if (feedbackKey === "charge.readError") feedbackKey = ""
     selectedDevice = Math.min(selectedDevice, Math.max(0, next.controls.length - 1))
   }
   function execute(command, feedback) {
@@ -77,11 +79,17 @@ Column {
     command: ["/usr/bin/python3", root.client, "status"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: reader.output = text }
     onExited: function(code) {
-      if (reader.generation !== root.generation) { root.refresh(); return }
+      if (reader.generation !== root.generation) {
+        Qt.callLater(function() { root.refresh() })
+        return
+      }
       try {
         if (code !== 0) throw new Error("status unavailable")
         root.accept(output)
-      } catch (e) { root.feedbackKey = "charge.readError" }
+      } catch (e) {
+        root.readingAvailable = false
+        root.feedbackKey = "charge.readError"
+      }
     }
   }
   Process {
@@ -97,13 +105,14 @@ Column {
           var next = JSON.parse(output)
           if (next.installed === undefined) next.installed = true
           root.accept(JSON.stringify(next))
-          root.feedbackKey = "charge.applied"
-        } catch (e) { root.feedbackKey = "charge.readError" }
+          root.feedbackKey = action.command[2] === "setup" ? "charge.setupDone" : "charge.applied"
+        } catch (e) { root.readingAvailable = false; root.feedbackKey = "charge.readError" }
       } else {
         root.feedbackKey = "charge.setError"
         root.errorDetail = error.trim().slice(0, 2000)
       }
-      root.refresh()
+      // Process.running can remain true until onExited returns.
+      Qt.callLater(function() { root.refresh() })
     }
   }
   Timer { interval: 5000; repeat: true; running: root.opened && !root.busy; onTriggered: root.refresh() }

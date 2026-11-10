@@ -20,12 +20,25 @@ class AuthenticationTests(unittest.TestCase):
             client.elevate(['/fixed/helper','set','BAT0','80'])
         self.assertEqual(run.call_args_list[0].args[0], ['/usr/bin/sudo','-n','--','/fixed/helper','set','BAT0','80'])
         self.assertEqual(run.call_args_list[1].args[0][0], '/usr/bin/pkexec')
+        self.assertEqual(run.call_args_list[0].kwargs['timeout'], 180)
 
     def test_helper_failure_is_never_retried(self):
         with patch.object(client, 'run', return_value=self.result(1, 'Driver rejected the setting')) as run:
             with self.assertRaisesRegex(RuntimeError, 'Driver rejected'):
                 client.elevate(['/fixed/helper'])
         self.assertEqual(run.call_count,1)
+
+    def test_timeout_is_not_retried_after_possible_writes(self):
+        with patch.object(client, 'run', side_effect=subprocess.TimeoutExpired('sudo', 180)) as run:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                client.elevate(['/fixed/helper'])
+        self.assertEqual(run.call_count, 1)
+
+    def test_bad_status_cannot_authorize_a_change(self):
+        for response in (self.result(1, 'Device disappeared', ''), self.result(0, stdout='[]'), self.result(0, stdout='x' * 131073)):
+            with self.subTest(response=response.returncode), patch.object(client, 'run', return_value=response):
+                with self.assertRaises(RuntimeError):
+                    client.read_status(['/fixed/helper', 'status'])
 
     def test_sudo_policy_denial_is_not_authentication(self):
         with patch.object(client, 'run', return_value=self.result(1, 'sudo: user is not allowed to execute this command')) as run:

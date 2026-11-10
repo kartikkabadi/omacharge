@@ -88,7 +88,17 @@ ShellRoot {
         capture.grabToImage(function(result) { result.saveToFile(Qt.resolvedUrl("demo-panel.png").toString().replace(/^file:\/\//, "")) })
         test.phase = 7
       } else if (test.phase === 7) {
-        console.log("PASS: UI presets, subprocess roundtrip, hardware controls, restart bounds, stable refresh, plain-text hostile label")
+        controls.execute(["break-status"], "")
+        test.phase = 8
+      } else if (test.phase === 8 && !controls.busy && !controls.readingAvailable) {
+        test.assertTrue(!controls.writable, "Stale readings disable changes")
+        test.assertTrue(controls.feedbackKey === "charge.readError", "Read failure is visible")
+        controls.execute(["repair-status"], "")
+        test.phase = 9
+      } else if (test.phase === 9 && !controls.busy && controls.readingAvailable) {
+        test.assertTrue(controls.writable, "Fresh read restores controls")
+        test.assertTrue(controls.feedbackKey !== "charge.readError", "Read failure clears on recovery")
+        console.log("PASS: UI presets, subprocess roundtrip, hardware controls, restart bounds, stable refresh, plain-text hostile label, stale-read blocking and recovery")
         Qt.quit()
       }
     }

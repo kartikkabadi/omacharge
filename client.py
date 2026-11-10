@@ -20,8 +20,21 @@ def needs_auth(result):
         phrase in result.stderr.lower() for phrase in ('a password is required', 'a terminal is required', 'no askpass program specified'))
 
 
+def read_status(command):
+    result = run(command, timeout=20)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
+    if len(result.stdout) > 131072:
+        raise RuntimeError('Battery status exceeds the supported size.')
+    data = json.loads(result.stdout)
+    if not isinstance(data, dict) or not isinstance(data.get('controls'), list):
+        raise RuntimeError('The backend returned an invalid battery status.')
+    return data
+
+
 def elevate(command):
-    result = run(['/usr/bin/sudo', '-n', '--', *command])
+    # Setup and multi-step vendor read-back can legitimately exceed 15 seconds.
+    result = run(['/usr/bin/sudo', '-n', '--', *command], timeout=180)
     if needs_auth(result):
         result = run(['/usr/bin/pkexec', *command], timeout=180)
     # Never retry a helper error: it may have already written part of a selection.
@@ -42,17 +55,14 @@ def main():
         installed = trusted_executable(HELPER)
         if args == ['status']:
             command = [str(HELPER), 'status'] if installed else ['/usr/bin/python3', '-I', str(Path(__file__).with_name('backend.py')), 'status']
-            result = run(command, timeout=20)
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
-            data = json.loads(result.stdout)
+            data = read_status(command)
             data['installed'] = installed and data.get('version') == VERSION
             print(json.dumps(data))
             return 0
         if len(args) in (3, 4) and args[0] == 'set':
             if not installed:
                 raise RuntimeError('Finish backend setup before changing a limit.')
-            status = json.loads(run([str(HELPER), 'status'], timeout=20).stdout)
+            status = read_status([str(HELPER), 'status'])
             if status.get('version') != VERSION:
                 raise RuntimeError('Update the backend using Finish setup before changing a limit.')
             # Backend rediscovery and validation remain authoritative.

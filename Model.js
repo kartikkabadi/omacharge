@@ -3,6 +3,33 @@ function clampIndex(index, length) {
   return Math.max(0, Math.min(length - 1, index))
 }
 
+// Validate a complete snapshot before QML binds to any of its nested fields.
+function parseChargeStatus(raw) {
+  if (typeof raw !== "string" || raw.length > 131072) throw new Error("Invalid battery status size")
+  var next = JSON.parse(raw)
+  function list(value, limit) { return Array.isArray(value) && value.length <= limit }
+  function text(value, limit) { return typeof value === "string" && value.length <= limit }
+  function percent(value) { return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100 }
+  function values(value) { return list(value, 101) && value.every(percent) && value.every(function(v, i) { return i === 0 || v > value[i - 1] }) }
+  if (!next || !list(next.controls, 16) || !list(next.batteries, 16) || !list(next.conflicts, 16)
+      || typeof next.installed !== "boolean" || !text(next.error, 2000)
+      || !next.conflicts.every(function(v) { return text(v, 160) })
+      || !next.batteries.every(function(v) { return v && text(v.id, 80) })) throw new Error("Invalid battery status")
+  var seen = {}
+  next.controls.forEach(function(c) {
+    if (!c || !text(c.id, 80) || !/^[A-Za-z0-9_.:-]+$/.test(c.id) || seen[c.id]
+        || !text(c.driver, 80) || !text(c.label, 160) || !text(c.warning, 2000)
+        || ["threshold", "toggle", "charge-types", "pair", "framework"].indexOf(c.kind) < 0
+        || ["", "apple", "msi"].indexOf(c.derived) < 0 || typeof c.shared !== "boolean"
+        || typeof c.persisted !== "boolean" || !values(c.stopValues) || !c.stopValues.length || !values(c.startValues)
+        || !percent(c.gap) || c.gap < 1 || !percent(c.fullStart)
+        || c.stopValues.indexOf(c.careStop) < 0 || c.stopValues.indexOf(c.fullStop) < 0
+        || (c.end !== null && !percent(c.end)) || (c.start !== null && !percent(c.start))) throw new Error("Invalid charge control")
+    seen[c.id] = true
+  })
+  return next
+}
+
 function selectProfileIndex(index, delta, profiles) {
   var values = Array.isArray(profiles) ? profiles : []
   if (values.length === 0) return 0
@@ -112,6 +139,7 @@ function profileLabel(name, tr) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    parseChargeStatus: parseChargeStatus,
     clampIndex: clampIndex,
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
