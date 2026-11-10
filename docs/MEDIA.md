@@ -14,6 +14,9 @@ Final generation prompt:
 
 ## Screenshots and preview
 
+The root `preview.png` is a copy of `assets/screenshots/battery-care.png` for
+the community directory. It retains the simulated-hardware label.
+
 The three images in `assets/screenshots/` render the actual released QML with
 sample Apple, Dell and Lenovo control states. The label **SIMULATED HARDWARE ·
 REAL QML** is part of the capture frame. They contain no private user data and

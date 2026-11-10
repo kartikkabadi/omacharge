@@ -40,7 +40,7 @@ class TrustAndLockTests(unittest.TestCase):
 
     def test_lock_contention_has_a_deadline(self):
         with tempfile.TemporaryDirectory() as tmp:
-            info=types.SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o600)
+            info=types.SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o600,st_nlink=1)
             with patch.object(backend,'LOCK',Path(tmp)/'lock'), patch.object(backend.os,'fstat',return_value=info), patch.object(backend.fcntl,'flock',side_effect=BlockingIOError), patch.object(backend.time,'monotonic',side_effect=[0,9]):
                 with self.assertRaisesRegex(backend.CareError,'busy'):
                     with backend.locked(): self.fail('An unavailable lock was entered')
@@ -59,7 +59,7 @@ class TrustAndLockTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('installer_lock_test',Path(__file__).resolve().parents[1]/'system/install.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as tmp:
-            info=types.SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o600)
+            info=types.SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o600,st_nlink=1)
             with patch.object(module,'INSTALL_LOCK',Path(tmp)/'lock'), patch.object(module.os,'fstat',return_value=info), patch.object(module.fcntl,'flock',side_effect=BlockingIOError), patch.object(module.time,'monotonic',side_effect=[0,9]):
                 with self.assertRaisesRegex(module.InstallError,'installation is running'):
                     with module.installation_lock(): self.fail('Contended installer lock was entered')

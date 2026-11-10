@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 HELPER = Path('/usr/local/libexec/omarchy-battery-care')
 CONFIG = Path('/etc/omarchy-battery-care.json')
 LOCK = Path('/run/lock/omarchy-battery-care.lock')
@@ -263,9 +263,18 @@ class Engine:
                 values = self.available(base, 'end')
                 if not values:
                     continue
+                if has_start and not self.available(base, 'start'):
+                    # A readable restart control needs a documented range too.
+                    continue
                 driver = 'sysfs-advertised'
                 kwargs = dict(stop_values=values, start_values=self.available(base, 'start') if has_start else [])
-            result.append(Control(name, driver, base, name, **kwargs))
+            control = Control(name, driver, base, name, **kwargs)
+            if control.start_values:
+                control.stop_values = [end for end in control.stop_values
+                                       if any(start <= end - control.gap for start in control.start_values)]
+                if not control.stop_values:
+                    continue
+            result.append(control)
             if kwargs.get('shared'):
                 return result[-1:]
         # Wilco has a separate charger control, alongside BAT0/BAT1 telemetry.
@@ -287,7 +296,7 @@ class Engine:
             args.append(str(end))
         proc = subprocess.run(args, capture_output=True, text=True, timeout=6, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
         match = re.search(r'^Minimum (\d{1,3})%, Maximum (\d{1,3})%\s*$', proc.stdout, re.M)
-        if proc.returncode or not match or not 0 <= int(match[2]) <= 100:
+        if proc.returncode or not match or not 0 <= int(match[1]) <= int(match[2]) <= 100:
             raise CareError('Framework could not confirm the charge limit. ' + proc.stderr[:400].strip())
         return int(match[1]), int(match[2])
 
@@ -297,7 +306,7 @@ class Engine:
             try:
                 _minimum, end = self.framework()
                 return {'start': None, 'end': end}
-            except CareError:
+            except (CareError, OSError, subprocess.SubprocessError):
                 return {'start': None, 'end': None}
         if control.kind == 'pair':
             values = self.read(path).split()
@@ -307,7 +316,10 @@ class Engine:
         if control.kind == 'charge-types':
             token = re.search(r'\[([^\]]+)\]', self.read(path))
             return {'start': None, 'end': {'Long_Life': 1, 'Standard': 0}.get(token[1] if token else '')}
-        return {'end': self.number(path), 'start': self.number(control.path + '/' + control.start_file)
+        end = self.number(path)
+        if control.driver == 'sony' and end == 0:
+            end = 100  # The Sony ABI uses zero for a disabled limiter.
+        return {'end': end, 'start': self.number(control.path + '/' + control.start_file)
                 if control.start_file and (control.start_values or control.derived) else None}
 
     def load_config(self):
@@ -400,7 +412,7 @@ class Engine:
             raise CareError('This maximum charge is not supported by the detected driver.')
         if control.derived or not control.start_values:
             expected = control.default_start(end)
-            if start is not None and start != expected:
+            if start is not None and (type(start) is not int or start != expected):
                 raise CareError('This driver controls the restart threshold automatically.')
             return expected
         if start is None:
@@ -429,7 +441,7 @@ class Engine:
                 old = self.current(control)
             if control.start_values and (old['end'] is None or old['start'] is None):
                 raise CareError('Cannot safely read both current thresholds; no threshold changes were made.')
-            writes = [(control.end_file, end)]
+            writes = [(control.end_file, 0 if control.driver == 'sony' and end == 100 else end)]
             if control.start_values:
                 # Respect the firmware's start/stop invariant at every intermediate write.
                 pair = (control.start_file, start)
@@ -458,6 +470,8 @@ class Engine:
         control = next((v for v in self.discover() if v.id == id), None)
         if control is None:
             raise CareError('The selected charge control is no longer available.')
+        if id not in config['devices'] and len(config['devices']) >= 32:
+            raise CareError('The saved device limit has been reached. Remove obsolete saved entries before adding a new battery.')
         try:
             actual = self.apply(control, end, start)
         except OSError as error:
@@ -495,7 +509,7 @@ class Engine:
             try:
                 self.apply(control, saved['end'], saved['start'])
                 result['restored'].append(control.id)
-            except (OSError, CareError) as error:
+            except (OSError, CareError, subprocess.SubprocessError) as error:
                 result['errors'].append(control.id + ': ' + str(error))
         return result
 
@@ -505,7 +519,7 @@ def locked(timeout=8):
     fd = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         info = os.fstat(fd)
-        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_nlink != 1:
             raise CareError('The battery-control lock is not root-owned.')
         deadline = time.monotonic() + timeout
         while True:

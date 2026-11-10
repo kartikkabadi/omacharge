@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "io.github.kartikkabadi.omacharge",
   "name": "Omacharge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Kartik Kabadi",
-  "description": "Hardware-aware charge limits inside the Omarchy battery panel",
+  "description": "Battery charge limits in Omarchy’s power panel, with hardware-aware presets, custom thresholds and saved settings.",
   "kinds": [
     "bar-widget"
   ],

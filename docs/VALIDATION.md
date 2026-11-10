@@ -1,8 +1,18 @@
-# Omacharge validation — version 0.1.1
+# Omacharge validation — version 0.1.2
 
 Date: 10 November 2026.
 
-## Physical device
+## Version 0.1.2 submission review
+
+- 98 Python tests and 10 JavaScript protocol tests pass. The suite includes the earlier 0.1.1 submission fixes and the extended audit below.
+- The actual QML component passes preset, custom-picker, stable editor/draft, stale-read, recovery and setup-message checks against simulated hardware.
+- Root `preview.png` is a labelled real-QML sample for the directory card. README screenshots and demo media use the same explicitly simulated states.
+- The protected helper was installed through the normal authenticated setup path on the Mac below. Status confirmed maximum 80%, restart 75%, saved policy, no config error or conflict. An authenticated set request for the existing 80% limit succeeded and read back 80/75 while the battery remained at 80% and Not charging.
+- Python compilation, shell syntax, manifest, systemd unit and whitespace checks pass. CI tests Python 3.11 and 3.14 and both JavaScript suites.
+
+A physical reboot/resume and other laptop models remain unverified. Simulated coverage does not establish physical compatibility.
+
+## Version 0.1.0 physical device
 
 - Apple MacBook Pro 14-inch (2021), M1 Pro; Arch Linux ARM, Omarchy 4.5.0, kernel `7.2.11-14-1-ARCH`.
 - With external power connected, the battery reached 80% and the native driver reported `Not charging`; the 80/75 thresholds remained active. This confirms the observed hold behavior on this device.
@@ -15,7 +25,7 @@ Date: 10 November 2026.
 
 ## Automated tests
 
-83 Python unit tests and 6 JavaScript protocol tests pass. Coverage includes vendor discovery and application, independent dual batteries, shared platform controls, driver-advertised discrete values, automatic restart thresholds, valid write order, read-back rejection, partial writes, saved-state restore, changed-machine rejection, missing/external devices, corrupt config, symlink escape rejection, fixed command arguments, TLP conflict handling, and privilege fallback behavior.
+98 Python unit tests and 10 JavaScript protocol tests pass. Coverage includes vendor discovery and application, independent dual batteries, shared platform controls, driver-advertised discrete values, automatic restart thresholds, valid write order, read-back rejection, partial writes, saved-state restore, changed-machine rejection, missing/external devices, corrupt config, symlink escape rejection, fixed command arguments, TLP conflict handling, and privilege fallback behavior.
 
 The installer tests cover preflight rejection, protected destination checks, transaction rollback, service enablement and active-state recovery, removal failures, file bounds and lock deadlines. Audit tests cover writable executable ancestors, corrupt/non-UTF-8 state, fail-closed service detection, outdated-helper fallback and rejected handshakes. Protocol tests reject malformed nested data, excessive payloads and invalid choices before QML binding.
 

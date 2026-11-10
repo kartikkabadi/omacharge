@@ -7,7 +7,7 @@ function values(list, allowEmpty) {
   var seen = ({})
   for (var i = 0; i < list.length; i++) {
     var v = list[i]
-    if (!integer(v) || v < 0 || v > 100 || seen[v]) return false
+    if (!integer(v) || v < 0 || v > 100 || seen[v] || (i > 0 && v <= list[i - 1])) return false
     seen[v] = true
   }
   return true

@@ -13,7 +13,7 @@ read-back, saved state and restore. It is also the installed root helper.
 
 ```bash
 python3 -m unittest discover -s tests -v
-node --test tests/test_model.cjs
+node --test tests/test_model.cjs tests/test_model.js
 python3 -m py_compile backend.py client.py system/install.py
 bash -n install.sh setup.sh uninstall.sh system/sleep-hook
 omarchy plugin validate .
@@ -21,7 +21,9 @@ python3 tests/run-ui.py
 ```
 
 The Python tests run with an isolated temporary sysfs tree and simulated kernel
-side effects. No real hardware is written and no authentication is requested.
+side effects. Installer checks use temporary destinations, an isolated HOME and
+fake service/shell commands. No real hardware is written and no authentication
+is requested. Node.js 18+ runs the UI snapshot validation tests.
 The UI test runs the actual component with a fake unprivileged backend, including
 presets, subprocess round trips, custom pickers and their popup, restart bounds,
 stable refresh and plain-text rendering. Quickshell and an installed Omarchy

@@ -24,7 +24,7 @@ Column {
   readonly property bool supported: state.controls.length > 0
   readonly property bool busy: action.running
   readonly property bool writable: freshStatus && state.installed && state.conflicts.length === 0 && !busy && !state.error
-  property string client: String(Qt.resolvedUrl("client.py")).replace(/^file:\/\//, "")
+  property string client: decodeURIComponent(String(Qt.resolvedUrl("client.py")).replace(/^file:\/\//, ""))
   readonly property bool editing: {
     for (var i = 0; i < devices.count; i++) {
       var card = devices.itemAt(i)
@@ -96,7 +96,10 @@ Column {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: reader.output = text }
     stderr: StdioCollector { waitForEnd: true; onStreamFinished: reader.error = text }
     onExited: function(code) {
-      if (reader.generation !== root.generation) { root.refresh(); return }
+      if (reader.generation !== root.generation) {
+        Qt.callLater(function() { root.refresh() })
+        return
+      }
       try {
         if (code !== 0) throw new Error("status unavailable")
         root.accept(output)
@@ -123,7 +126,8 @@ Column {
         root.feedbackKey = "charge.setError"
         root.errorDetail = error.trim().slice(0, 2000)
       }
-      root.refresh()
+      // Process.running can remain true until onExited returns.
+      Qt.callLater(function() { root.refresh() })
     }
   }
   Timer { interval: 5000; repeat: true; running: root.opened && !root.busy; onTriggered: root.refresh() }

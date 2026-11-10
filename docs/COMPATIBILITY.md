@@ -21,7 +21,7 @@ Implemented is not the same as physically tested. The only physical device teste
 | ChromeOS EC v2/v3 | Bound `cros-charge-control` platform driver and battery thresholds | End 1–100; restart 0–99 only if readable |
 | Wilco EC | `wilco_charger`, separate `wilco-charger` thresholds and `charge_type` | Shared restart 50–95, stop 55–100, gap at least 5; Custom mode |
 | Framework fallback | Framework DMI, no native adapter, root-owned `/usr/bin/framework_tool` | Stop 25–100 through `--charge-limit`; preserves firmware minimum |
-| Other explicit-capability drivers | End threshold plus `charge_control_end_available_thresholds` | Only explicitly advertised end values; optional advertised start values |
+| Other explicit-capability drivers | End threshold plus `charge_control_end_available_thresholds`; a readable start threshold also requires advertised start values | Only explicitly advertised values with at least one valid start/stop pair |
 
 Shared platform interfaces produce a single **All batteries** card. Independent standard interfaces produce a card for each battery. Missing/removed batteries and `scope=Device` peripherals are ignored.
 

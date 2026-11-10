@@ -194,6 +194,14 @@ class HardwareTests(unittest.TestCase):
         with self.assertRaises(bc.CareError):
             self.set_limit(60)
 
+    def test_sony_disabled_limiter_is_full_charge_not_zero_percent(self):
+        path = self.file('devices/platform/sony-laptop/battery_care_limiter', 0)
+        self.assertEqual(self.engine.current(self.control())['end'], 100)
+        self.set_limit(80)
+        self.set_limit(100)
+        self.assertEqual(path.read_text().strip(), '0')
+        self.assertTrue(self.engine.status()['controls'][0]['persisted'])
+
     def test_legacy_thinkpad(self):
         self.file('devices/platform/smapi/BAT0/stop_charge_thresh', 100)
         self.file('devices/platform/smapi/BAT0/start_charge_thresh', 96)
@@ -259,12 +267,39 @@ class HardwareTests(unittest.TestCase):
             with self.assertRaises(bc.CareError):
                 self.engine.framework(80)
 
+    def test_framework_timeout_keeps_status_available_but_limit_unknown(self):
+        control = bc.Control('platform-framework', 'framework-tool', '', 'All batteries', kind='framework')
+        with patch.object(self.engine, 'framework', side_effect=subprocess.TimeoutExpired('framework_tool', 12)):
+            self.assertEqual(self.engine.current(control), {'start': None, 'end': None})
+
+    def test_framework_invalid_minimum_is_rejected(self):
+        proc = subprocess.CompletedProcess([], 0, 'Minimum 90%, Maximum 80%\n', '')
+        with patch.object(bc, 'trusted_executable', return_value=True), patch.object(bc.subprocess, 'run', return_value=proc):
+            with self.assertRaises(bc.CareError):
+                self.engine.framework()
+
     def test_unknown_vendor_does_not_guess_ranges(self):
         self.file('class/power_supply/BAT0/charge_control_end_threshold', 80)
         self.assertEqual(self.engine.discover(), [])
         self.file('class/power_supply/BAT0/charge_control_end_available_thresholds', '60 80 100')
         self.assertEqual(self.control().driver, 'sysfs-advertised')
         self.assertEqual(self.control().stop_values, [60, 80, 100])
+
+    def test_advertised_pairs_exclude_unusable_maximums(self):
+        base = self.standard('unknown_driver', start=80, end=100)
+        self.file(base + '/charge_control_end_available_thresholds', '60 80 100')
+        self.file(base + '/charge_control_start_available_thresholds', '80 95')
+        self.assertEqual(self.control().stop_values, [100])
+        self.assertIsNone(self.engine.status()['controls'][0]['careStop'])
+        self.set_limit(100)
+        self.assertEqual(self.engine.current(self.control()), {'start': 95, 'end': 100})
+        self.file(base + '/charge_control_end_available_thresholds', '60 80')
+        self.assertEqual(self.engine.discover(), [])
+
+    def test_unknown_restart_range_is_not_guessed(self):
+        base = self.standard('unknown_driver')
+        self.file(base + '/charge_control_end_available_thresholds', '60 80 100')
+        self.assertEqual(self.engine.discover(), [])
 
     def test_external_batteries_and_removed_batteries_are_ignored(self):
         self.standard('thinkpad_acpi')
@@ -324,6 +359,41 @@ class HardwareTests(unittest.TestCase):
         with self.assertRaises(bc.CareError):
             self.engine.restore()
         self.assertEqual(self.engine.writes, [])
+
+    def test_boolean_saved_values_are_not_treated_as_integers(self):
+        self.standard('msi_ec', start=0, end=10)
+        self.set_limit(10)
+        original = self.engine.load_config()
+        for field in ('schema', 'end', 'start'):
+            data = json.loads(json.dumps(original))
+            if field == 'schema':
+                data[field] = True
+            else:
+                data['devices']['BAT0'][field] = True
+            self.engine.config.write_text(json.dumps(data))
+            self.engine.writes.clear()
+            with self.assertRaises(bc.CareError):
+                self.engine.restore()
+            self.assertEqual(self.engine.writes, [])
+
+    def test_full_saved_device_table_cannot_write_an_unreadable_33rd_entry(self):
+        self.standard('thinkpad_acpi')
+        data = {'schema': 1, 'devices': {f'OLD{i}': {'identity': '0' * 64, 'driver': 'thinkpad', 'end': 80, 'start': 75} for i in range(32)}}
+        self.engine.config.write_text(json.dumps(data))
+        with self.assertRaisesRegex(bc.CareError, 'saved device limit'):
+            self.set_limit(90, 75)
+        self.assertEqual(self.engine.writes, [])
+        self.assertEqual(self.engine.load_config(), data)
+
+    def test_derived_boolean_restart_is_rejected_before_writes(self):
+        self.standard('msi_ec', start=0, end=10)
+        with self.assertRaises(bc.CareError):
+            self.set_limit(10, False)
+        self.assertEqual(self.engine.writes, [])
+
+    def test_huawei_out_of_range_readings_are_unknown(self):
+        self.file('devices/platform/huawei-wmi/charge_control_thresholds', '999 1000')
+        self.assertEqual(self.engine.current(self.control()), {'start': None, 'end': None})
 
     def test_corrupt_config_is_not_overwritten(self):
         self.standard('thinkpad_acpi')

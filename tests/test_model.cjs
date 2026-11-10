@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../ChargeModel.js');
 function state() {
-  return {version:'0.1.1',installed:true,error:'',conflicts:[],batteries:[{id:'BAT0'}],controls:[{
+  return {version:'0.1.2',installed:true,error:'',conflicts:[],batteries:[{id:'BAT0'}],controls:[{
     id:'BAT0',driver:'dell',label:'BAT0',kind:'threshold',shared:false,stopValues:[60,80,100],startValues:[50,60,70,75,95],
     derived:'',gap:5,fullStart:95,end:80,start:75,careStop:80,fullStop:100,persisted:false,warning:'',saved:null
   }]};

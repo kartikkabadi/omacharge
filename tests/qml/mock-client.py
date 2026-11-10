@@ -3,6 +3,11 @@ from pathlib import Path
 import sys
 p=Path(__file__).with_name('mock-state.json')
 state=json.loads(p.read_text())
+if sys.argv[1] in ('break-status', 'repair-status'):
+    state['testReadFailure'] = sys.argv[1] == 'break-status'
+    p.write_text(json.dumps(state))
+elif sys.argv[1] == 'status' and state.get('testReadFailure'):
+    sys.exit(1)
 if sys.argv[1] == 'set':
     _, id, end, *start = sys.argv[1:]
     ctl=next(c for c in state['controls'] if c['id']==id)

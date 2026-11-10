@@ -127,7 +127,7 @@ class InstallerTests(unittest.TestCase):
     def test_destination_symlink_is_refused(self):
         link=self.root/'link'; link.symlink_to(self.helper)
         with self.assertRaisesRegex(installer.InstallError,'symlink'):
-            installer.validate_destination.__wrapped__(link) if hasattr(installer.validate_destination,'__wrapped__') else self.actual_validation(link)
+            self.actual_validation(link)
 
     def actual_validation(self,path):
         self.validation.stop()
@@ -144,6 +144,22 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaises(installer.InstallError): self.run_install(True)
         self.assert_original()
         self.assertEqual(self.calls[-1],['/usr/bin/systemctl','start',installer.UNIT])
+
+    def test_remove_stop_failure_preserves_all_files(self):
+        self.failure=lambda args:'--now' in args
+        with self.assertRaises(installer.InstallError): self.run_install(True)
+        self.assert_original()
+
+    def test_remove_preflight_failure_does_not_stop_service(self):
+        self.validate.side_effect=installer.InstallError('unsafe')
+        with self.assertRaises(installer.InstallError): self.run_install(True)
+        self.assertEqual(self.calls,[])
+        self.assert_original()
+
+    def test_removal_of_absent_unit_does_not_disable_it(self):
+        self.unit.unlink(); self.enabled=False
+        self.run_install(True)
+        self.assertFalse(any('disable' in args for args in self.calls))
 
 
 if __name__=='__main__': unittest.main()

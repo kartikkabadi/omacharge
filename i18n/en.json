@@ -16,7 +16,7 @@
   "charge.applying": "Applying\u2026 Authenticate if prompted.",
   "charge.applied": "The driver accepted the setting and it was saved.",
   "charge.saved": "Saved for restart",
-  "charge.unsaved": "Current setting is not saved by Battery Care.",
+  "charge.unsaved": "Current setting is not saved by Omacharge.",
   "charge.readError": "Could not read battery controls. Reopen the panel to retry.",
   "charge.setError": "The operation could not be completed.",
   "charge.conflict": "TLP is active. Charge controls are read-only to avoid competing settings.",

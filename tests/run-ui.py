@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='battery-care-ui-') as tmp:
     control = dict(id='TEST', driver='apple', label='TEST', kind='threshold', shared=False,
                    stopValues=[80,100], startValues=[], derived='apple', gap=1, fullStart=100,
                    careStop=80, fullStop=100, warning='', saved=None, persisted=True, end=100, start=100)
-    state = dict(version='0.1.0', installed=True, controls=[control], batteries=[{'id':'TEST'}], conflicts=[], error='')
+    state = dict(version='0.1.2', installed=True, controls=[control], batteries=[{'id':'TEST'}], conflicts=[], error='')
     (root / 'mock-state.json').write_text(json.dumps(state))
     env = {**os.environ, 'QT_QPA_PLATFORM':'offscreen', 'QT_QUICK_BACKEND':'software'}
     env.pop('WAYLAND_DISPLAY', None)

@@ -145,7 +145,7 @@ def installation_lock():
     fd = os.open(INSTALL_LOCK, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         info = os.fstat(fd)
-        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+        if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_nlink != 1:
             raise InstallError('The installer lock is not root-owned.')
         deadline = time.monotonic() + 8
         while True:

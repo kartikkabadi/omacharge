@@ -20,8 +20,20 @@ def needs_auth(result):
         phrase in result.stderr.lower() for phrase in ('a password is required', 'a terminal is required', 'no askpass program specified'))
 
 
+def read_status(command):
+    result = run(command, timeout=20)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
+    if len(result.stdout) > 131072:
+        raise RuntimeError('Battery status exceeds the supported size.')
+    data = json.loads(result.stdout)
+    if not isinstance(data, dict) or not isinstance(data.get('controls'), list):
+        raise RuntimeError('The backend returned an invalid battery status.')
+    return data
+
+
 def elevate(command):
-    result = run(['/usr/bin/sudo', '-n', '--', *command], timeout=120)
+    result = run(['/usr/bin/sudo', '-n', '--', *command], timeout=180)
     if needs_auth(result):
         result = run(['/usr/bin/pkexec', *command], timeout=180)
     # Never retry a helper error: it may have already written part of a selection.
@@ -43,35 +55,25 @@ def main():
         if args == ['status']:
             data = None
             if installed:
-                result = run([str(HELPER), 'status'], timeout=30)
-                if result.returncode == 0:
-                    try:
-                        candidate = json.loads(result.stdout)
-                        if isinstance(candidate, dict) and candidate.get('version') == VERSION:
-                            data = candidate
-                    except ValueError:
-                        pass
-            # A broken/older helper cannot hide new frontend capabilities or its setup button.
+                try:
+                    candidate = read_status([str(HELPER), 'status'])
+                    if candidate.get('version') == VERSION:
+                        data = candidate
+                except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                    pass
+            # A broken/older helper cannot hide current capabilities or the setup button.
             if data is None:
                 command = ['/usr/bin/python3', '-I', str(Path(__file__).with_name('backend.py')), 'status']
-                result = run(command, timeout=30)
-                if result.returncode:
-                    raise RuntimeError(result.stderr.strip()[:2000] or 'Battery status is unavailable.')
-                data = json.loads(result.stdout)
+                data = read_status(command)
                 installed = False
-            if not isinstance(data, dict):
-                raise RuntimeError('The battery helper returned an invalid status.')
             data['installed'] = installed
             print(json.dumps(data))
             return 0
         if len(args) in (3, 4) and args[0] == 'set':
             if not installed:
                 raise RuntimeError('Finish backend setup before changing a limit.')
-            result = run([str(HELPER), 'status'], timeout=30)
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip()[:2000] or 'The battery helper is unavailable.')
-            status = json.loads(result.stdout)
-            if not isinstance(status, dict) or status.get('version') != VERSION:
+            status = read_status([str(HELPER), 'status'])
+            if status.get('version') != VERSION:
                 raise RuntimeError('Update the backend using Finish setup before changing a limit.')
             # Backend rediscovery and validation remain authoritative.
             print(elevate([str(HELPER), *args]).stdout.strip())
